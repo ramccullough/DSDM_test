@@ -6,6 +6,7 @@ install.packages("abind")
 library(raster)
 library(zoon)
 library(greta)
+library(abind)
 LoadModule('Bioclim')
 
 bioclim<-getData('worldclim', var='bio', res=10)
@@ -103,11 +104,25 @@ top_row <- cbind(fecundity * survival$juvenile,
 bottom_row <- cbind(survival$juvenile,
                     survival$adult)
 matrices <- abind(top_row, bottom_row, along = 3)
-iterated <- greta.dynamics::iterate_matrix(matrices, niter = 10)
-lambda<-iterated$lambda
+
+
+#iterated <- greta.dynamics::iterate_matrix(matrices, niter = 10)
+#lambda<-iterated$lambda
+
+#cell-by-cell eigenvalues
+lambdas<-array(0, dim=n)
+for (i in 1:70){
+  top<-matrices[i, ,1]
+  bottom<-matrices[i, ,2]
+  leslie_matrix<-abind(top, bottom, along=2)
+  eigenvalues<-eigen(leslie_matrix)
+  lambda<-eigenvalues$values
+  lambdas[i]<-max(lambda)
+}
 
 #probability of presence
-icloglog(likelihood_intercept+log(lambda))
+p<-icloglog(likelihood_intercept+log(lambdas))
+y<-rbinom(n, 1, p)
 
 
 ##Using greta arrays
@@ -138,12 +153,13 @@ bottom_row <- cbind(survival$juvenile,
                     survival$adult)
 matrices <- abind(top_row, bottom_row, along = 3)
 iterated <- greta.dynamics::iterate_matrix(matrices, niter = 10)
+
 lambda<-iterated$lambda
 
 #probability of presence
-p<-icloglog(likelihood_intercept+log(lambda))
+#p<-icloglog(likelihood_intercept+log(lambda))
 
-y<-rbinom(n, 1, p)
+#y<-rbinom(n, 1, p)
 
 
 
