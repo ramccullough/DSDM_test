@@ -2,11 +2,13 @@ install.packages("rlang")
 install.packages("zoon")
 install.packages("devtools")
 install.packages("abind")
+install.packages("VGAM")
 
 library(raster)
 library(zoon)
 library(greta)
 library(abind)
+library(VGAM)
 LoadModule('Bioclim')
 
 bioclim<-getData('worldclim', var='bio', res=10)
@@ -105,10 +107,6 @@ bottom_row <- cbind(survival$juvenile,
                     survival$adult)
 matrices <- abind(top_row, bottom_row, along = 3)
 
-
-#iterated <- greta.dynamics::iterate_matrix(matrices, niter = 10)
-#lambda<-iterated$lambda
-
 #cell-by-cell eigenvalues
 lambdas<-array(0, dim=n)
 for (i in 1:70){
@@ -120,41 +118,41 @@ for (i in 1:70){
   lambdas[i]<-max(lambda)
 }
 
+
 #probability of presence
-p<-icloglog(likelihood_intercept+log(lambdas))
+p<-1-exp(-(likelihood_intercept*lambdas))
 y<-rbinom(n, 1, p)
 
 
 ##Using greta arrays
-b_fecundity <- normal(0, 1, dim=ncov_fecundity)
-
-b_survival <- normal(0, 1, dim=ncov_survival)
-l_intercept <- variable()
-
-#survival
-survival_logit_adult<-default_logit_survival_adult+x_survival%*%b_survival
-survival_logit_juvenile<-default_logit_survival_juvenile+x_survival%*%b_survival
-adult_survival<-ilogit(survival_logit_adult)
-juvenile_survival<-ilogit(survival_logit_juvenile)
-
-adult_survival_true<-calculate(adult_survival, values=list(b_survival=beta_survival))
-juvenile_survival_true<-calculate(juvenile_survival, values=list(b_survival=beta_survival))
-survival=list(adult=adult_survival_true, juvenile=juvenile_survival_true)
-
-#fecundity
-fecundity_log=default_log_fecundity+x_fecundity%*%b_fecundity
-fecundity=exp(fecundity_log)
-fecundity<-calculate(fecundity, values=list(b_fecundity=beta_fecundity))
-
-#get lambda from leslie matrices
-top_row <- cbind(fecundity * survival$juvenile,
-                 fecundity * survival$adult)
-bottom_row <- cbind(survival$juvenile,
-                    survival$adult)
-matrices <- abind(top_row, bottom_row, along = 3)
-iterated <- greta.dynamics::iterate_matrix(matrices, niter = 10)
-
-lambda<-iterated$lambda
+# b_fecundity <- normal(0, 1, dim=ncov_fecundity)
+# b_survival <- normal(0, 1, dim=ncov_survival)
+# l_intercept <- variable()
+# 
+# #survival
+# survival_logit_adult<-default_logit_survival_adult+x_survival%*%b_survival
+# survival_logit_juvenile<-default_logit_survival_juvenile+x_survival%*%b_survival
+# adult_survival<-ilogit(survival_logit_adult)
+# juvenile_survival<-ilogit(survival_logit_juvenile)
+# 
+# adult_survival_true<-calculate(adult_survival, values=list(b_survival=beta_survival))
+# juvenile_survival_true<-calculate(juvenile_survival, values=list(b_survival=beta_survival))
+# survival=list(adult=adult_survival_true, juvenile=juvenile_survival_true)
+# 
+# #fecundity
+# fecundity_log=default_log_fecundity+x_fecundity%*%b_fecundity
+# fecundity=exp(fecundity_log)
+# fecundity<-calculate(fecundity, values=list(b_fecundity=beta_fecundity))
+# 
+# #get lambda from leslie matrices
+# top_row <- cbind(fecundity * survival$juvenile,
+#                fecundity * survival$adult)
+# bottom_row <- cbind(survival$juvenile,
+#                   survival$adult)
+# matrices <- abind(top_row, bottom_row, along = 3)
+# iterated <- greta.dynamics::iterate_matrix(matrices, niter = 10)
+# 
+# lambda<-iterated$lambda
 
 #probability of presence
 #p<-icloglog(likelihood_intercept+log(lambda))
