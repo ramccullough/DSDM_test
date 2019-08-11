@@ -1,6 +1,7 @@
 install.packages("rlang")
 install.packages("zoon")
 install.packages("devtools")
+install.packages("abind")
 
 library(raster)
 library(zoon)
@@ -95,8 +96,6 @@ x_fecundity<-dat[, fecundity_covs]
 
 fecundity_log=default_log_fecundity+x_fecundity%*%beta_fecundity
 fecundity=exp(fecundity_log)
-
-install.packages("abind")
 
 #get lambda (intrinsic growth) from Leslie matrices
 top_row <- cbind(fecundity * survival$juvenile,
