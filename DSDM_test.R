@@ -35,11 +35,13 @@ ncov_fecundity<-length(fecundity_covs)
 
 #extract environmental covariates for Melbourne bay locations
 
-#sample_sites<-sampleRandom(bioclim_cropped, size=50, cells=TRUE)
+sample_sites<-sampleRandom(bioclim_cropped, size=150, cells=TRUE)
 #n<- ncell(bioclim_cropped)
 #sites<-seq(1, ncell(bioclim_cropped), 1)
 
 sites <- which(!is.na(getValues(bioclim_cropped[[1]])))
+
+
 n<- length(sites)
 vals<-extract(bioclim_cropped, sites)
 
@@ -184,8 +186,10 @@ iterated <- greta.dynamics::iterate_matrix(matrices, niter = 10)
 lambda<-iterated$lambda
 prob<-icloglog(likelihood_intercept+log(lambda))
 
+# p_new <- calculate(prob, list(beta_fecundity = b_fecundity, beta_survival = b_survival, likelihood_intercept = l_intercept))
+
 distribution(y)<-bernoulli(prob)
 m<-model(beta_fecundity, beta_survival, likelihood_intercept)
 
-draws<-mcmc(m, chains = 2)
+draws<-mcmc(m, chains = 8)
 summary(draws)
