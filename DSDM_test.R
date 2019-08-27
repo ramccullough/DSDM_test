@@ -2,19 +2,21 @@ install.packages("rlang")
 install.packages("zoon")
 install.packages("devtools")
 
+library(rlang)
 library(raster)
 library(zoon)
 library(greta)
 
 LoadModule('Bioclim')
+resolution<-2.5
 
-bioclim<-getData('worldclim', var='bio', res=10)
+bioclim<-getData('worldclim', var='bio', res=resolution)
 
 #Get bio data for Melbourne region
 e <- new("Extent", xmin = 143.612155685872, xmax = 145.549489975136, 
          ymin = -38.8184069791436, ymax = -37.481080244538)
 bioclim_cropped <- crop(bioclim, e)
-plot(bioclim_cropped[[1]], maxpixels = 100000)
+#plot(bioclim_cropped[[1]], maxpixels = 100000)
 
 #choose survival and fecundity covariates (to refine/edit later with ref to biology)
 #survival
@@ -35,15 +37,17 @@ ncov_fecundity<-length(fecundity_covs)
 
 #extract environmental covariates for Melbourne bay locations
 
-sample_sites<-sampleRandom(bioclim_cropped, size=150, cells=TRUE)
 #n<- ncell(bioclim_cropped)
 #sites<-seq(1, ncell(bioclim_cropped), 1)
 
-sites <- which(!is.na(getValues(bioclim_cropped[[1]])))
+cells <- which(!is.na(getValues(bioclim_cropped[[1]])))
+n<- length(cells)
+#n_sites=n/3
 
+#sites<-sampleRandom(bioclim_cropped, size=n_sites, na.rm=TRUE, cells=TRUE)
+sites<-sampleRandom(bioclim_cropped, size=n, na.rm=TRUE, cells=TRUE)
 
-n<- length(sites)
-vals<-extract(bioclim_cropped, sites)
+vals<-extract(bioclim_cropped, sites[, "cell"])
 
 vals<- as.matrix(vals)
 dat<-vals[, all_covs]
@@ -62,7 +66,6 @@ dat_means <- colMeans(dat)
 dat_sds <- apply(dat, 2, sd)
 
 dat<-scale_covs(dat, dat_means, dat_sds)
-
 
 #survival and fecundity data for ringtail possums from McCarthy, Lindenmayer and Possingham
 #adults survival =0.64
@@ -138,20 +141,20 @@ juvenile_survival<-ilogit(survival_logit_juvenile)
 
 adult_survival_true<-calculate(adult_survival, values=list(beta_survival=b_survival))
 juvenile_survival_true<-calculate(juvenile_survival, values=list(beta_survival=b_survival))
-survival=list(adult=adult_survival_true, juvenile=juvenile_survival_true)
+survival_true=list(adult=adult_survival_true, juvenile=juvenile_survival_true)
 
 #fecundity
 fecundity_log=default_log_fecundity+x_fecundity%*%beta_fecundity
 fecundity=exp(fecundity_log)
-fecundity<-calculate(fecundity, values=list(beta_fecundity=b_fecundity))
+fecundity_true<-calculate(fecundity, values=list(beta_fecundity=b_fecundity))
 
 #get lambda from leslie matrices
-top_row <- cbind(fecundity * survival$juvenile,
-               fecundity * survival$adult)
-bottom_row <- cbind(survival$juvenile,
-                  survival$adult)
+top_row <- cbind(fecundity_true * survival_true$juvenile,
+               fecundity_true * survival_true$adult)
+bottom_row <- cbind(survival_true$juvenile,
+                  survival_true$adult)
 matrices <- abind(top_row, bottom_row, along = 3)
-iterated <- greta.dynamics::iterate_matrix(matrices, niter = 10)
+iterated <- greta.dynamics::iterate_matrix(matrices, niter = 20)
 
 lambda<-iterated$lambda
 lambda<-calculate(lambda)
@@ -165,10 +168,10 @@ y<-rbinom(n, 1, p)
 
 #Aim to recover fecundity and survival distributions from simulated data
 #survival
-survival_logit_adult<-default_logit_survival_adult+x_survival%*%beta_survival
-survival_logit_juvenile<-default_logit_survival_juvenile+x_survival%*%beta_survival
-adult_survival<-ilogit(survival_logit_adult)
-juvenile_survival<-ilogit(survival_logit_juvenile)
+# survival_logit_adult<-default_logit_survival_adult+x_survival%*%beta_survival
+# survival_logit_juvenile<-default_logit_survival_juvenile+x_survival%*%beta_survival
+# adult_survival<-ilogit(survival_logit_adult)
+# juvenile_survival<-ilogit(survival_logit_juvenile)
 
 survival=list(adult=adult_survival, juvenile=juvenile_survival)
 
@@ -181,7 +184,7 @@ top_row <- cbind(fecundity * survival$juvenile,
 bottom_row <- cbind(survival$juvenile,
                     survival$adult)
 matrices <- abind(top_row, bottom_row, along = 3)
-iterated <- greta.dynamics::iterate_matrix(matrices, niter = 10)
+iterated <- greta.dynamics::iterate_matrix(matrices, niter = 20)
 
 lambda<-iterated$lambda
 prob<-icloglog(likelihood_intercept+log(lambda))
@@ -190,6 +193,19 @@ prob<-icloglog(likelihood_intercept+log(lambda))
 
 distribution(y)<-bernoulli(prob)
 m<-model(beta_fecundity, beta_survival, likelihood_intercept)
+#plot(m)
 
-draws<-mcmc(m, chains = 8)
+draws<-mcmc(m, warmup=1500, chains = 8)
 summary(draws)
+
+chains=8
+niter=20
+
+setwd("C:\\Users\\racha\\Google Drive (rmccullough@student.unimelb.edu.au)\\MSc\\Research\\Computational")
+filenames<-sprintf("DSDM_res=%.1f_n=%i_niter=%i_nchains=%ichain=%i.csv", resolution, n, niter, chains, 11:14)
+
+write.csv(draws$`11`, file=filenames[1])
+write.csv(draws$`12`, file=filenames[2])
+write.csv(draws$`13`, file=filenames[3])
+write.csv(draws$`14`, file=filenames[4])
+
