@@ -74,8 +74,8 @@ default_logit_survival_juvenile <- qlogis(0.33)
 default_log_fecundity<-log(1.23)
 
 #choose arbritrary regression coefficients for create simulated data
-#b_fecundity<-as.matrix(rnorm(ncov_fecundity, mean=0, sd=0.1))
-#b_survival<-as.matrix(rnorm(ncov_survival, mean=0, sd=0.1))
+# b_fecundity<-as.matrix(rnorm(ncov_fecundity, mean=0, sd=0.1))
+# b_survival<-as.matrix(rnorm(ncov_survival, mean=0, sd=0.1))
 b_fecundity<-matrix(c(0.018, -0.095), 2, 1)
 b_survival<-matrix(c(-0.183, -0.010, 0.036), 3, 1)
 l_intercept<-0.1
