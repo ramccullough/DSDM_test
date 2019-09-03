@@ -141,7 +141,6 @@ m<-model(beta_fecundity, beta_survival, likelihood_intercept)
 #plot(m)
 
 chains=4
-niter=20
 nsamples=1000
 
 draws<-mcmc(m, n_samples=nsamples, chains = chains)
