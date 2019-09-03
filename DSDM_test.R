@@ -74,8 +74,10 @@ default_logit_survival_juvenile <- qlogis(0.33)
 default_log_fecundity<-log(1.23)
 
 #choose arbritrary regression coefficients for create simulated data
-b_fecundity<-as.matrix(rnorm(ncov_fecundity, mean=0, sd=0.1))
-b_survival<-as.matrix(rnorm(ncov_survival, mean=0, sd=0.1))
+#b_fecundity<-as.matrix(rnorm(ncov_fecundity, mean=0, sd=0.1))
+#b_survival<-as.matrix(rnorm(ncov_survival, mean=0, sd=0.1))
+b_fecundity<-matrix(c(0.018, -0.095), 2, 1)
+b_survival<-matrix(c(-0.183, -0.010, 0.036), 3, 1)
 l_intercept<-0.1
 
 ##Using greta arrays
@@ -140,29 +142,23 @@ m<-model(beta_fecundity, beta_survival, likelihood_intercept)
 
 chains=4
 niter=20
-nsamples=10000
+nsamples=1000
 
 draws<-mcmc(m, n_samples=nsamples, chains = chains)
 summary(draws)
 mcmc_hist(draws)
-
-# setwd("C:\\Users\\racha\\Google Drive (rmccullough@student.unimelb.edu.au)\\MSc\\Research\\Computational")
-# filenames<-sprintf("DSDM_res=%.1f_n=%i_niter=%i_nsamples=%i_nchains=%ichain=%i.csv", resolution, n, niter, nsamples, chains, 11:14)
-# 
-# write.csv(draws$`11`, file=filenames[1])
-# write.csv(draws$`12`, file=filenames[2])
-# write.csv(draws$`13`, file=filenames[3])
-# write.csv(draws$`14`, file=filenames[4])
+mcmc_recover_hist(draws, true=c(b_fecundity, b_survival, l_intercept))
 
 
 opt(m, hessian=TRUE)
+# 
+# 
+# fec_draws <- calculate(beta_fecundity, draws)
+# fec_matrix <- as.matrix(draws)
+# cor(fec_matrix)
+# 
+# sqrt(solve(h$hessian$beta_fecundity))
 
-
-fec_draws <- calculate(beta_fecundity, draws)
-fec_matrix <- as.matrix(draws)
-cor(fec_matrix)
-
-sqrt(solve(h$hessian$beta_fecundity))
 
 
 
