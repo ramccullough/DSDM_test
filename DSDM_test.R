@@ -19,7 +19,6 @@ scale_covs <- function (covs, means, sds) {
   covs
 }
 
-
 LoadModule('Bioclim')
 resolution<-2.5
 
@@ -149,15 +148,26 @@ mcmc_hist(draws)
 mcmc_recover_hist(draws, true=c(b_fecundity, b_survival, l_intercept))
 
 
-opt(m, hessian=TRUE)
-# 
-# 
+# o<-opt(m, hessian=TRUE)
+#  
 # fec_draws <- calculate(beta_fecundity, draws)
 # fec_matrix <- as.matrix(draws)
 # cor(fec_matrix)
 # 
+# surv_draws <- calculate(beta_survival, draws)
+# surv_matrix <- as.matrix(draws)
+# cor(surv_matrix)
+#  
 # sqrt(solve(h$hessian$beta_fecundity))
 
+#get mle and covariances matrices
+summary(glm(y~lambda, family=stats::binomial()))
+
+#find negative log likelihood
+nll<-function(){
+  p<-icloglog(likelihood_intercept+log(lambda))
+  -sum(y*log(p)+(1-y)*log(1-p))
+}
 
 
 
