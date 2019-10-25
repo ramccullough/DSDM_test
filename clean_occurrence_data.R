@@ -1,5 +1,3 @@
-file<-'survey_data.csv'
-
 # clean_pp <-function(file){
 #   pp<-read.csv(file) #read in data
 #   pp<- pp[, c('Site', 'Point', 'Species')] #select relevant columns
@@ -22,17 +20,28 @@ file<-'survey_data.csv'
 #   return(pp_clean)
 # }
 
-clean_pp<-function(file){
-  pp<-read.csv(file) #read in data
-  pp<- pp[, c('Site', 'Point', 'Species')] #select relevant columns
-  pp$Site_Point <- paste(pp$Site, pp$Point)
-  count_RT <- function(species) { sum(species == "RT") }
-  counts <- tapply(pp$Species, pp$Site_Point, FUN=count_RT)
-  site_points<-names(counts)
-  idx<-match(site_points, pp$Site_Point)
-  pp_clean<-data.frame(Site=pp$Site[idx], Point=pp$Point[idx], Count=counts)
-  pp_clean<-pp_clean[order(pp_clean$Point), ]
-  pp_clean<-pp_clean[order(pp_clean$Site), ]
-  rownames(pp_clean)<- NULL
-}
+# clean_pp<-function(file){
+#   pp<-read.csv(file) #read in data
+#   pp<- pp[, c('Site', 'Point', 'Species')] #select relevant columns
+#   pp$Site_Point <- paste(pp$Site, pp$Point)
+#   count_RT <- function(species) { sum(species == "RT") }
+#   counts <- tapply(pp$Species, pp$Site_Point, FUN=count_RT)
+#   site_points<-names(counts)
+#   idx<-match(site_points, pp$Site_Point)
+#   pp_clean<-data.frame(Site=pp$Site[idx], Point=pp$Point[idx], Count=counts)
+#   pp_clean<-pp_clean[order(pp_clean$Point), ]
+#   pp_clean<-pp_clean[order(pp_clean$Site), ]
+#   rownames(pp_clean)<- NULL
+# }
 
+
+clean_pp<-function(file, my_pts){
+  pp<-read.csv(file)
+  pp_clean <- pp %>%
+    mutate(RT=Species=="RT") %>%
+    group_by(Site, Point) %>%
+    summarise(Count=sum(RT)) %>% 
+    merge(my_pts, by = c('Site', 'Point'))
+  
+  return(pp_clean)
+}
