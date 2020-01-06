@@ -7,6 +7,10 @@ library(raster)
 library(zoon)
 library(greta)
 library(bayesplot)
+library(dplyr)
+
+#set working directory for data
+setwd("C:/Users/racha/Google Drive (rmccullough@student.unimelb.edu.au)/MSc/Research/Computational")
 
 #Define functions
 #scale covariates
@@ -20,9 +24,9 @@ scale_covs <- function (covs, means, sds) {
 }
 
 LoadModule('Bioclim')
-resolution<-2.5
+resolution <- 2.5
 
-bioclim<-getData('worldclim', var='bio', res=resolution)
+bioclim <- getData('worldclim', var = 'bio', res = resolution)
 
 #Get bio data for Melbourne region
 e <- new("Extent", xmin = 143.612155685872, xmax = 145.549489975136, 
@@ -67,7 +71,6 @@ dat<-scale_covs(dat, dat_means, dat_sds)
 #adults survival =0.64
 #juvenile survival =0.33
 #newborn females/breeder =1.23
-
 default_logit_survival_adult<-qlogis(0.64)
 default_logit_survival_juvenile <- qlogis(0.33)
 default_log_fecundity<-log(1.23)
