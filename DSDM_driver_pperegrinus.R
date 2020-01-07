@@ -135,8 +135,8 @@ dat <- cbind(pp_clean, vals)
 #remove rows with NA values for covariates, and scale
 dat_clean <- dat %>%
   na.omit() %>%
-  mutate_at(vars(all_covs), scale)
-
+  mutate_at(vars(all_covs), scale) %>%
+  mutate_at(vars(all_covs), as.numeric)
 
 beta_fecundity <- normal(0, 1/ncov_fecundity, dim = ncov_fecundity)
 beta_survival <- normal(0, 1/ncov_survival, dim = ncov_survival)
@@ -209,9 +209,44 @@ draws <- mcmc(m, n_samples = 500, chains = 2)
 
 # Predicting from the model
 
-#covariate values for all pixels in raster
-idx <- which(!is.na(getValues(covariates[[1]])))
-covariates_predict <- extract(covariates, idx)
+# Get covariate values for all pixels in raster
+# Using only cropped Melbourne bay region
+
+# scale prediction covariates by mean and sd of survey site covariates
+# Columns of covariates only
+# dat_means <- dat %>%
+#   na.omit() %>%
+#   select(all_covs) %>%
+#   summarise_all(mean) %>%
+#   as.numeric()
+# 
+# dat_sds <- dat %>%
+#   na.omit() %>%
+#   select(all_covs) %>%
+#   summarise_all(sd)
+
+# covariates_predict_clean <- covariates_predict %>%
+#   as.data.frame() %>%
+#   na.omit() %>%
+#   mutate_at(vars(all_covs), scale(center = colMeans(cols), scale = apply(na.omit(cols), 2, sd))) %>%
+#   mutate_at(vars(all_covs), as.numeric)
+
+
+
+scale_covs <- function (covs, means, sds) {
+  cols_scale <- match(names(means), colnames(covs))
+  covs_sub <- covs[, cols_scale]
+  covs_sub <- sweep(covs_sub, 2, means, "-")
+  covs_sub <- sweep(covs_sub, 2, sds, "/")
+  covs[, cols_scale] <- covs_sub
+  covs
+}
+
+cols <- select(na.omit(dat), all_covs)
+dat_means <- colMeans(cols)
+dat_sds <- apply(cols, 2, sd)
+covariates_predict <- scale_covs(as.data.frame(covariates_cropped), dat_means, dat_sds) %>%
+  na.omit()
 
 #prediction arrays
 survival_predict <- get_survival(covariates_predict)
@@ -219,4 +254,18 @@ fecundity_predict <- get_fecundity(covariates_predict)
 lambdas_predict <- get_lambda(survival_predict, fecundity_predict)
 rate_predict <- get_rate(lambdas_predict)
 
+# map posterior mean estimates
+map_variable <- function (greta_array, draws) {
+  vals <- calculate(greta_array, draws)
+  vals_mat <- as.matrix(vals)
+  mean <- colMeans(vals_mat)
+  map <- covs[[1]]
+  map[idx] <- mean
+  map
+}
+
+lambda_map <- map_variable(lambdas_predict, draws)
+rate_map <- map_variable(rate_predict, draws)
+fec_map <- map_variable(fecundity_predict, draws)
+surv_map <- map_variable(survival_predict$adult, draws)
 
