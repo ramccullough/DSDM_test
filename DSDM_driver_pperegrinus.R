@@ -35,6 +35,7 @@ library(greta)
 library(bayesplot)
 library(dplyr)
 library(rgeos)
+library(tidyr)
 
 # Set working directory for data
 setwd("C:/Users/racha/Google Drive (rmccullough@student.unimelb.edu.au)/MSc/Research/Computational/")
@@ -60,9 +61,9 @@ prepare_coords_data <- function (coordinates_file) {
 clean_pp<-function(file, my_pts){
   pp<-read.csv(file)
   pp_clean <- pp %>%
-    mutate(RT=Species=="RT") %>%
+    mutate(RT = Species == "RT") %>%
     group_by(Site, Point) %>%
-    summarise(Count=sum(RT)) %>% 
+    summarise(Count = sum(RT)) %>% 
     merge(my_pts, by = c('Site', 'Point'))
   
   return(pp_clean)
@@ -109,6 +110,9 @@ mask <- covariates[[1]]*0
 mask[missing] <- NA
 covariates <- mask(covariates, mask)
 
+# reduce size for computation
+covariates <- aggregate(covariates, 10)
+
 # Crop to Melbourne bay region
 e <- new("Extent", xmin = 143.9, xmax = 145.5, 
          ymin = -38.8, ymax = -37.7)
@@ -129,14 +133,15 @@ default_logit_survival_juvenile <- qlogis(0.33)
 default_log_fecundity <- log(1.23)
 
 # Extract covariates at survey locations
-vals <- extract(covariates_cropped, pp_clean[, c('Longitude', 'Latitude')])
+vals <- raster::extract(covariates_cropped, pp_clean[, c('Longitude', 'Latitude')], cellnumbers = TRUE)
 dat <- cbind(pp_clean, vals)
 
 #remove rows with NA values for covariates, and scale
 dat_clean <- dat %>%
   na.omit() %>%
-  mutate_at(vars(all_covs), scale) %>%
-  mutate_at(vars(all_covs), as.numeric)
+  #mutate_at(vars(all_covs), scale) %>%
+  mutate_at(vars(all_covs), as.numeric) %>%
+  rename(cell_number = cells)
 
 beta_fecundity <- normal(0, 1/ncov_fecundity, dim = ncov_fecundity)
 beta_survival <- normal(0, 1/ncov_survival, dim = ncov_survival)
@@ -185,10 +190,11 @@ get_rate <- function(lambda){
 survival <- get_survival(dat_clean)
 fecundity <- get_fecundity(dat_clean)
 lambdas <- get_lambda(survival, fecundity)
-#prob <- get_prob(lambdas)
+prob <- get_prob(lambdas)
 rate <- get_rate(lambdas)
 
 #likelihood for PA
+# To finish
 #presence<- dat_clean %>%
   #mutate_at('Count', as.logical) %>%
   #mutate_at('Count', as.numeric)
@@ -231,8 +237,6 @@ draws <- mcmc(m, n_samples = 500, chains = 2)
 #   mutate_at(vars(all_covs), scale(center = colMeans(cols), scale = apply(na.omit(cols), 2, sd))) %>%
 #   mutate_at(vars(all_covs), as.numeric)
 
-
-
 scale_covs <- function (covs, means, sds) {
   cols_scale <- match(names(means), colnames(covs))
   covs_sub <- covs[, cols_scale]
@@ -242,10 +246,10 @@ scale_covs <- function (covs, means, sds) {
   covs
 }
 
-cols <- select(na.omit(dat), all_covs)
+cols <- select(dat_clean, all_covs)
 dat_means <- colMeans(cols)
 dat_sds <- apply(cols, 2, sd)
-covariates_predict <- scale_covs(as.data.frame(covariates_cropped), dat_means, dat_sds) %>%
+covariates_predict <- scale_covs(raster::extract(covariates_cropped, seq(1, ncell(covariates_cropped), 1), df = TRUE), dat_means, dat_sds) %>%
   na.omit()
 
 #prediction arrays
@@ -255,11 +259,14 @@ lambdas_predict <- get_lambda(survival_predict, fecundity_predict)
 rate_predict <- get_rate(lambdas_predict)
 
 # map posterior mean estimates
+# idx is index of nonNA cells in prediction array
+idx <- which(!is.na(getValues(covariates_cropped[[1]])))
+  
 map_variable <- function (greta_array, draws) {
   vals <- calculate(greta_array, draws)
   vals_mat <- as.matrix(vals)
   mean <- colMeans(vals_mat)
-  map <- covs[[1]]
+  map <- covariates_cropped[[1]]
   map[idx] <- mean
   map
 }
@@ -268,4 +275,3 @@ lambda_map <- map_variable(lambdas_predict, draws)
 rate_map <- map_variable(rate_predict, draws)
 fec_map <- map_variable(fecundity_predict, draws)
 surv_map <- map_variable(survival_predict$adult, draws)
-
