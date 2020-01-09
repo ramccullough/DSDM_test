@@ -1,29 +1,6 @@
 # =============================================================================
 # DSDM for P.peregrinus
 # =============================================================================
-# X_train
-# beta_surv <- normal(0, 1, dim = K)
-# logit_survival_offset <- normal(0, 1)
-# 
-# X_surv_locs
-# 
-# # for the survival data
-# logit_adult_survival_surv_locs <- X_surv_locs %*% beta_surv
-# adult_survival_surv_locs <- ilogit(logit_adult_survival_surv_locs)
-# juvenile_survival_surv_locs <- ilogit(logit_adult_survival_surv_locs - logit_survival_offset)
-# 
-# distribution(survived_adult) <- binomial(trials_adult, adult_survival_surv_locs)
-# distribution(survived_juvenile) <- binomial(trials_juvenile, juvenile_survival_surv_locs)
-# 
-# # survived_adult is a vector of length two (for the two sites) of the combined
-# # number of adults that did survive a year, trials_adult is a vector fo length
-# # two of the number that were observed (survived + died)
-# 
-# # for use in the main model
-# logit_adult_survival <- X_train %*% beta_surv
-# adult_survival <- ilogit(logit_adult_survival)
-# juvenile_survival <- ilogit(logit_adult_survival - logit_survival_offset)
-# 
 # Section 1: Set up and preliminaries
 # Section 2: Download and clean datasets
 # Section 3: Set up model priors and functions
@@ -147,30 +124,25 @@ default_log_fecundity <- log(1.23)
 # 3.2 Extract covariate data from paper sites (Pahl 1987) ---------------------
 # Lysterfield: Lat = 37.58 Long = 145.37
 # Sandy point: Lat = 38.24 Long = 145.14
-# Sites <- c('Lysterfield', 'Sandy_Point')
-# Longitude <- c(145.6167, 145.2333)
-# Latitude <- c(-37.9667, -38.4000)
+Sites <- c('Lysterfield', 'Sandy_Point')
+Longitude <- c(145.6167, 145.23998)
+Latitude <- c(-37.9667, -38.408055)
 
-Sites <- c('Lysterfield')
-Longitude <- c(145.6167)
-Latitude <- c(-37.9667)
+# Sites <- c('Lysterfield')
+# Longitude <- c(145.6167)
+# Latitude <- c(-37.9667)
 site_locs <- data.frame(Sites, Longitude, Latitude)
 x_data <- raster::extract(covariates, site_locs[, c('Longitude', 'Latitude')], cellnumbers = TRUE)
 x_data <- as.data.frame(x_data)
-# x_survey <- raster::extract(covariates, site_locs[, c('Longitude', 'Latitude')], method = 'bilinear')
 
 # 3.? Include survival data from paper sites (Pahl 1987) ----------------------
-adult_trials <- c(54)
-adult_survived <- c(23)
-juvenile_trials <- c(98)
-juvenile_survived <- c(31)
+adult_trials <- c(54, 65)
+adult_survived <- c(23, 34)
+juvenile_trials <- c(98, 82)
+juvenile_survived <- c(31, 31)
 
 survival_adult <- data.frame(Sites, adult_trials, adult_survived)
 survival_juvenile <- data.frame(Sites, juvenile_trials, juvenile_survived)
-
-# # survived_adult is a vector of length two (for the two sites) of the combined
-# # number of adults that did survive a year, trials_adult is a vector fo length
-# # two of the number that were observed (survived + died)
 
 # 3.3 Extract covariates at survey locations ----------------------------------
 vals <- raster::extract(covariates_cropped, pp_clean[, c('Longitude', 'Latitude')], cellnumbers = TRUE)
@@ -190,7 +162,7 @@ likelihood_intercept <- variable()
 
 # 3.6 Include survival data from published papers into model ------------------
 logit_survival_adult_sites <- x_data[, survival_covs] %*% beta_survival
-logit_survival_offset <- qlogis(0.3) # Placeholder data. Needs updating
+logit_survival_offset <- normal(0, 1) # Placeholder. Needs updating
 survival_adult_sites <- ilogit(logit_survival_adult_sites)
 survival_juvenile_sites <- ilogit(logit_survival_adult_sites - logit_survival_offset)
 
@@ -202,10 +174,12 @@ distribution(survival_juvenile$juvenile_survived) <- binomial(survival_juvenile$
 # 3.8 Function for calculating survival, given covariates ---------------------
 get_survival <- function(covs){
   x_survival <- covs[, survival_covs]
-  survival_logit_adult <- default_logit_survival_adult + x_survival %*% beta_survival
-  survival_logit_juvenile <- default_logit_survival_juvenile + x_survival %*% beta_survival
+  # survival_logit_adult <- default_logit_survival_adult + x_survival %*% beta_survival
+  survival_logit_adult <- x_survival %*% beta_survival
+  # survival_logit_juvenile <- default_logit_survival_juvenile + x_survival %*% beta_survival
   adult_survival <- ilogit(survival_logit_adult)
-  juvenile_survival <- ilogit(survival_logit_juvenile)
+  # juvenile_survival <- ilogit(survival_logit_juvenile)
+  juvenile_survival <- ilogit(survival_logit_adult - logit_survival_offset)
   survival <- list(adult = adult_survival, juvenile = juvenile_survival)
 }
 
@@ -233,9 +207,9 @@ get_prob <- function(lambda){
 }
 
 # 3.12 Function for calculating count -----------------------------------------
-get_rate <- function(lambda){
-  exp(likelihood_intercept)*lambda
-}
+# get_rate <- function(lambda){
+#   exp(likelihood_intercept)*lambda
+# }
 
 # =============================================================================
 # Section 4: Compile model and run mcmc
@@ -245,7 +219,7 @@ survival <- get_survival(dat_clean)
 fecundity <- get_fecundity(dat_clean)
 lambdas <- get_lambda(survival, fecundity)
 prob <- get_prob(lambdas)
-rate <- get_rate(lambdas)
+# rate <- get_rate(lambdas)
 
 # 4.2 Define likelihood function for presence/absence data --------------------
 presence <- dat_clean %>%
@@ -284,11 +258,11 @@ scale_covs <- function (covs, means, sds) {
 }
 
 # 5.1 Scale bay region covariates by survey site covariates -------------------
-cols <- select(dat_clean, all_covs)
-dat_means <- colMeans(cols)
-dat_sds <- apply(cols, 2, sd)
-covariates_predict <- scale_covs(raster::extract(covariates_cropped, seq(1, ncell(covariates_cropped), 1), df = TRUE), dat_means, dat_sds) %>%
-  na.omit()
+# cols <- select(dat_clean, all_covs)
+# dat_means <- colMeans(cols)
+# dat_sds <- apply(cols, 2, sd)
+# covariates_predict <- scale_covs(raster::extract(covariates_cropped, seq(1, ncell(covariates_cropped), 1), df = TRUE), dat_means, dat_sds) %>%
+#   na.omit()
 
 covariates_predict <- raster::extract(covariates_cropped, seq(1, ncell(covariates_cropped), 1)) %>%
   na.omit()
@@ -298,7 +272,7 @@ survival_predict <- get_survival(covariates_predict)
 fecundity_predict <- get_fecundity(covariates_predict)
 lambdas_predict <- get_lambda(survival_predict, fecundity_predict)
 prob_presence_predict <- get_prob(lambdas_predict)
-rate_predict <- get_rate(lambdas_predict)
+# rate_predict <- get_rate(lambdas_predict)
 
 # 5.3 Get cell IDs of non-NA cells in prediction region -----------------------
 idx <- which(!is.na(getValues(covariates_cropped[[1]])))
@@ -316,13 +290,16 @@ map_variable <- function (greta_array, draws) {
 # 5.5 Get values for mapping --------------------------------------------------
 lambda_map <- map_variable(lambdas_predict, draws)
 prob_presence_map <- map_variable(prob_presence_predict, draws) 
-rate_map <- map_variable(rate_predict, draws)
+# rate_map <- map_variable(rate_predict, draws)
 fec_map <- map_variable(fecundity_predict, draws)
 surv_map <- map_variable(survival_predict$adult, draws)
 
 # =============================================================================
 # Section 6: Plot prediction maps
 # =============================================================================
+plot(prob_presence_map, zlim = c(0, 1))
+plot(surv_map, zlim = c(0, 1))
+plot(fec_map, zlim = c(0, maxValue(fec_map)))
 
-
-
+range <- lambda_map > 1
+plot(range)
