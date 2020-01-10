@@ -172,8 +172,8 @@ distribution(survival_adult$adult_survived) <- binomial(survival_adult$adult_tri
 distribution(survival_juvenile$juvenile_survived) <- binomial(survival_juvenile$juvenile_trials, survival_juvenile_sites)
 
 # 3.9 Include fecundity data from published papers into model -----------------
-fecundity_log = x_data[, fecundity_covs] %*% beta_fecundity
-fec_rate <- exp(fecundity_log)
+log_fecundity = x_data[, fecundity_covs] %*% beta_fecundity
+fec_rate <- exp(log_fecundity)
 
 distribution(fecundity_sites$offspring) <- poisson(fec_rate * fecundity_sites$breeding_females)
 
@@ -254,7 +254,7 @@ draws <- mcmc(m, n_samples = 500, chains = 2)
 # =============================================================================
 # Section 5: Get prediction arrays
 # =============================================================================
-# 5.1 Function to scale covariates
+# 5.1 Function to scale covariates --------------------------------------------
 scale_covs <- function (covs, means, sds) {
   cols_scale <- match(names(means), colnames(covs))
   covs_sub <- covs[, cols_scale]
