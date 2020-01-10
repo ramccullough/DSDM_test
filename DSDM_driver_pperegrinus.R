@@ -116,26 +116,23 @@ all_covs <- c(survival_covs, fecundity_covs)
 ncov_fecundity <- length(fecundity_covs)
 ncov_survival <- length(survival_covs)
 
-# 3.2 Include data from published papers --------------------------------------
+# 3.2 Default data from published papers --------------------------------------
 # default_logit_survival_adult <- qlogis(0.64)
 # default_logit_survival_juvenile <- qlogis(0.33)
-default_log_fecundity <- log(1.23)
+# default_log_fecundity <- log(1.23)
 
 # 3.2 Extract covariate data from paper sites (Pahl 1987) ---------------------
-# Lysterfield: Lat = 37.58 Long = 145.37
-# Sandy point: Lat = 38.24 Long = 145.14
+# Lysterfield: Lat = 37 58'S Long = 145 37'E
+# Sandy point: Lat = 38 24'S Long = 145 14'E
 Sites <- c('Lysterfield', 'Sandy_Point')
 Longitude <- c(145.6167, 145.23998)
 Latitude <- c(-37.9667, -38.408055)
 
-# Sites <- c('Lysterfield')
-# Longitude <- c(145.6167)
-# Latitude <- c(-37.9667)
 site_locs <- data.frame(Sites, Longitude, Latitude)
 x_data <- raster::extract(covariates, site_locs[, c('Longitude', 'Latitude')], cellnumbers = TRUE)
 x_data <- as.data.frame(x_data)
 
-# 3.? Include survival data from paper sites (Pahl 1987) ----------------------
+# 3.3 Include survival data from paper sites (Pahl 1987) ----------------------
 adult_trials <- c(54, 65)
 adult_survived <- c(23, 34)
 juvenile_trials <- c(98, 82)
@@ -144,23 +141,28 @@ juvenile_survived <- c(31, 31)
 survival_adult <- data.frame(Sites, adult_trials, adult_survived)
 survival_juvenile <- data.frame(Sites, juvenile_trials, juvenile_survived)
 
-# 3.3 Extract covariates at survey locations ----------------------------------
+# 3.4 Include fecundity data from paper sites (Pahl 1987) ---------------------
+breeding_females <- c(74, 107)
+offspring <- c(176, 239)
+fecundity_sites <- data.frame(Sites, breeding_females, offspring)
+
+# 3.5 Extract covariates at survey locations ----------------------------------
 vals <- raster::extract(covariates_cropped, pp_clean[, c('Longitude', 'Latitude')], cellnumbers = TRUE)
 dat <- cbind(pp_clean, vals)
 
-# 3.4 remove rows with NA values ?(and scale) ---------------------------------
+# 3.6 remove rows with NA values ?(and scale) ---------------------------------
 dat_clean <- dat %>%
   na.omit() %>%
   #mutate_at(vars(all_covs), scale) %>%
   mutate_at(vars(all_covs), as.numeric) %>%
   rename(cell_number = cells)
 
-# 3.5 Define priors for model -------------------------------------------------
+# 3.7 Define priors for model -------------------------------------------------
 beta_fecundity <- normal(0, 1/ncov_fecundity, dim = ncov_fecundity)
 beta_survival <- normal(0, 1/ncov_survival, dim = ncov_survival)
 likelihood_intercept <- variable()
 
-# 3.6 Include survival data from published papers into model ------------------
+# 3.8 Include survival data from published papers into model ------------------
 logit_survival_adult_sites <- x_data[, survival_covs] %*% beta_survival
 logit_survival_offset <- normal(0, 1) # Placeholder. Needs updating
 survival_adult_sites <- ilogit(logit_survival_adult_sites)
@@ -169,9 +171,13 @@ survival_juvenile_sites <- ilogit(logit_survival_adult_sites - logit_survival_of
 distribution(survival_adult$adult_survived) <- binomial(survival_adult$adult_trials, survival_adult_sites)
 distribution(survival_juvenile$juvenile_survived) <- binomial(survival_juvenile$juvenile_trials, survival_juvenile_sites)
 
-# 3.7 Include fecundity data from published papers into model -----------------
+# 3.9 Include fecundity data from published papers into model -----------------
+fecundity_log = x_data[, fecundity_covs] %*% beta_fecundity
+fec_rate <- exp(fecundity_log)
 
-# 3.8 Function for calculating survival, given covariates ---------------------
+distribution(fecundity_sites$offspring) <- poisson(fec_rate * fecundity_sites$breeding_females)
+
+# 3.10 Function for calculating survival, given covariates ---------------------
 get_survival <- function(covs){
   x_survival <- covs[, survival_covs]
   # survival_logit_adult <- default_logit_survival_adult + x_survival %*% beta_survival
@@ -183,14 +189,15 @@ get_survival <- function(covs){
   survival <- list(adult = adult_survival, juvenile = juvenile_survival)
 }
 
-# 3.9 Function for calculating fecundity, given covariates --------------------
+# 3.11 Function for calculating fecundity, given covariates --------------------
 get_fecundity <- function(covs){
   x_fecundity <- covs[, fecundity_covs]
-  fecundity_log = default_log_fecundity + x_fecundity %*% beta_fecundity
+  # fecundity_log = default_log_fecundity + x_fecundity %*% beta_fecundity
+  fecundity_log = x_fecundity %*% beta_fecundity
   fecundity = exp(fecundity_log)
 }
 
-# 3.10 Function for calculating lambda, given covariates -----------------------
+# 3.12 Function for calculating lambda, given covariates -----------------------
 get_lambda <- function(survival, fecundity){
   top_row <- cbind(fecundity * survival$juvenile,
                    fecundity * survival$adult)
@@ -201,12 +208,12 @@ get_lambda <- function(survival, fecundity){
   lambda <- iterated$lambda
 }
 
-# 3.11 Function for calculating probability of presence ------------------------
+# 3.13 Function for calculating probability of presence ------------------------
 get_prob <- function(lambda){
   icloglog(likelihood_intercept + log(lambda))
 }
 
-# 3.12 Function for calculating count -----------------------------------------
+# 3.14 Function for calculating count -----------------------------------------
 # get_rate <- function(lambda){
 #   exp(likelihood_intercept)*lambda
 # }
@@ -231,8 +238,8 @@ presence <- presence[, 'PA']
 distribution(presence) <- bernoulli(prob)
 
 # 4.3 Define likelihood function for count data  ------------------------------
-abundance <- dat_clean[, 'Count']
-distribution(abundance) <- poisson(rate)
+# abundance <- dat_clean[, 'Count']
+# distribution(abundance) <- poisson(rate)
 
 # 4.4 Fit model ---------------------------------------------------------------
 m <- model(beta_fecundity,
