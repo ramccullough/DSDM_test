@@ -262,7 +262,7 @@ rate_matrix <- as.matrix(rate_draws)
 rate_matrix_means <- colMeans(rate_matrix)
 rate_matrix_ci <- apply(rate_matrix, 2, quantile, c(0.025, 0.975))
 
- predicted_abundance <- rpois(length(rate_matrix_means), rate_matrix_means)
+# predicted_abundance <- rpois(length(rate_matrix_means), rate_matrix_means)
 
 abundance_sim <- array(NA, dim = dim(rate_matrix))
 abundance_sim[] <- rpois(length(rate_matrix), rate_matrix[])
