@@ -130,7 +130,8 @@ Latitude <- c(-37.9667, -38.408055)
 
 site_locs <- data.frame(Sites, Longitude, Latitude)
 x_data <- raster::extract(covariates, site_locs[, c('Longitude', 'Latitude')], cellnumbers = TRUE)
-x_data <- as.data.frame(x_data)
+x_data <- as.data.frame(x_data) %>%
+  cbind(intercept = 1)
 
 # 3.3 Include survival data from paper sites (Pahl 1987) ----------------------
 adult_trials <- c(54, 65)
@@ -148,7 +149,7 @@ fecundity_sites <- data.frame(Sites, breeding_females, offspring)
 
 # 3.5 Extract covariates at survey locations ----------------------------------
 vals <- raster::extract(covariates_cropped, pp_clean[, c('Longitude', 'Latitude')], cellnumbers = TRUE)
-dat <- cbind(pp_clean, vals)
+dat <- cbind(pp_clean, vals, intercept = 1)
 
 # 3.6 remove rows with NA values ?(and scale) ---------------------------------
 dat_clean <- dat %>%
@@ -158,13 +159,13 @@ dat_clean <- dat %>%
   rename(cell_number = cells)
 
 # 3.7 Define priors for model -------------------------------------------------
-beta_fecundity <- normal(0, 1/ncov_fecundity, dim = ncov_fecundity)
-beta_survival <- normal(0, 1/ncov_survival, dim = ncov_survival)
+beta_fecundity <- normal(0, 1/ncov_fecundity, dim = ncov_fecundity + 1)
+beta_survival <- normal(0, 1/ncov_survival, dim = ncov_survival + 1)
 likelihood_intercept <- variable()
 
 # 3.8 Include survival data from published papers into model ------------------
-logit_survival_adult_sites <- x_data[, survival_covs] %*% beta_survival
-logit_survival_offset <- normal(0, 1) # Placeholder. Needs updating
+logit_survival_adult_sites <- x_data[, c(survival_covs, 'intercept')] %*% beta_survival
+logit_survival_offset <- variable() 
 survival_adult_sites <- ilogit(logit_survival_adult_sites)
 survival_juvenile_sites <- ilogit(logit_survival_adult_sites - logit_survival_offset)
 
@@ -172,14 +173,14 @@ distribution(survival_adult$adult_survived) <- binomial(survival_adult$adult_tri
 distribution(survival_juvenile$juvenile_survived) <- binomial(survival_juvenile$juvenile_trials, survival_juvenile_sites)
 
 # 3.9 Include fecundity data from published papers into model -----------------
-log_fecundity = x_data[, fecundity_covs] %*% beta_fecundity
+log_fecundity = x_data[, c(fecundity_covs, 'intercept')] %*% beta_fecundity
 fec_rate <- exp(log_fecundity)
 
 distribution(fecundity_sites$offspring) <- poisson(fec_rate * fecundity_sites$breeding_females)
 
 # 3.10 Function for calculating survival, given covariates ---------------------
 get_survival <- function(covs){
-  x_survival <- covs[, survival_covs]
+  x_survival <- covs[, c(survival_covs, 'intercept')]
   # survival_logit_adult <- default_logit_survival_adult + x_survival %*% beta_survival
   survival_logit_adult <- x_survival %*% beta_survival
   # survival_logit_juvenile <- default_logit_survival_juvenile + x_survival %*% beta_survival
@@ -191,7 +192,7 @@ get_survival <- function(covs){
 
 # 3.11 Function for calculating fecundity, given covariates --------------------
 get_fecundity <- function(covs){
-  x_fecundity <- covs[, fecundity_covs]
+  x_fecundity <- covs[, c(fecundity_covs, 'intercept')]
   # fecundity_log = default_log_fecundity + x_fecundity %*% beta_fecundity
   fecundity_log = x_fecundity %*% beta_fecundity
   fecundity = exp(fecundity_log)
@@ -248,8 +249,18 @@ m <- model(beta_fecundity,
 
 # 4.5 Run MCMC chain ----------------------------------------------------------
 draws <- mcmc(m, n_samples = 500, chains = 2)
+
+# 4.6 Plot summary stats ------------------------------------------------------
 # summary(draws)
 # mcmc_hist(draws)
+# mcmc_acf_bar(draws)
+# mcmc_intervals(draws)
+
+# 4.7 Find model predictions at survey sites for model verification -----------
+probs <- calculate(prob, draws)
+probs_matrix <- as.matrix(probs)
+probs_matrix_means <- colMeans(probs_matrix)
+probs_matrix_ci <- apply(probs_matrix, 2, quantile, c(0.025, 0.975))
 
 # =============================================================================
 # Section 5: Get prediction arrays
@@ -272,6 +283,7 @@ scale_covs <- function (covs, means, sds) {
 #   na.omit()
 
 covariates_predict <- raster::extract(covariates_cropped, seq(1, ncell(covariates_cropped), 1)) %>%
+  cbind(intercept = 1) %>%
   na.omit()
 
 # 5.2 Get prediction arrays ---------------------------------------------------
