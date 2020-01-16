@@ -210,14 +210,14 @@ get_lambda <- function(survival, fecundity){
 }
 
 # 3.13 Function for calculating probability of presence ------------------------
-get_prob <- function(lambda){
-  icloglog(likelihood_intercept + log(lambda))
-}
+# get_prob <- function(lambda){
+#   icloglog(likelihood_intercept + log(lambda))
+# }
 
 # 3.14 Function for calculating count -----------------------------------------
-# get_rate <- function(lambda){
-#   exp(likelihood_intercept)*lambda
-# }
+get_rate <- function(lambda){
+  exp(likelihood_intercept)*lambda
+}
 
 # =============================================================================
 # Section 4: Compile model and run mcmc
@@ -226,8 +226,8 @@ get_prob <- function(lambda){
 survival <- get_survival(dat_clean)
 fecundity <- get_fecundity(dat_clean)
 lambdas <- get_lambda(survival, fecundity)
-prob <- get_prob(lambdas)
-# rate <- get_rate(lambdas)
+# prob <- get_prob(lambdas)
+rate <- get_rate(lambdas)
 
 # 4.2 Define likelihood function for presence/absence data --------------------
 presence <- dat_clean %>%
@@ -239,8 +239,8 @@ presence <- presence[, 'PA']
 distribution(presence) <- bernoulli(prob)
 
 # 4.3 Define likelihood function for count data  ------------------------------
-# abundance <- dat_clean[, 'Count']
-# distribution(abundance) <- poisson(rate)
+abundance <- dat_clean[, 'Count']
+distribution(abundance) <- poisson(rate)
 
 # 4.4 Fit model ---------------------------------------------------------------
 m <- model(beta_fecundity,
@@ -257,10 +257,25 @@ draws <- mcmc(m, n_samples = 500, chains = 2)
 # mcmc_intervals(draws)
 
 # 4.7 Find model predictions at survey sites for model verification -----------
-probs <- calculate(prob, draws)
-probs_matrix <- as.matrix(probs)
-probs_matrix_means <- colMeans(probs_matrix)
-probs_matrix_ci <- apply(probs_matrix, 2, quantile, c(0.025, 0.975))
+rate_draws <- calculate(rate, draws)
+rate_matrix <- as.matrix(rate_draws)
+rate_matrix_means <- colMeans(rate_matrix)
+rate_matrix_ci <- apply(rate_matrix, 2, quantile, c(0.025, 0.975))
+
+ predicted_abundance <- rpois(length(rate_matrix_means), rate_matrix_means)
+
+abundance_sim <- array(NA, dim = dim(rate_matrix))
+abundance_sim[] <- rpois(length(rate_matrix), rate_matrix[])
+
+# basic plot
+plot(abundance, colMeans(abundance_sim))
+
+# quantile residuals
+dharma_obj <- createDHARMa(t(abundance_sim), abundance, integerResponse = TRUE)
+hist(residuals(dharma_obj))
+
+# PPC density
+ppc_dens_overlay(abundance, abundance_sim)
 
 # =============================================================================
 # Section 5: Get prediction arrays
@@ -291,7 +306,7 @@ survival_predict <- get_survival(covariates_predict)
 fecundity_predict <- get_fecundity(covariates_predict)
 lambdas_predict <- get_lambda(survival_predict, fecundity_predict)
 prob_presence_predict <- get_prob(lambdas_predict)
-# rate_predict <- get_rate(lambdas_predict)
+ rate_predict <- get_rate(lambdas_predict)
 
 # 5.3 Get cell IDs of non-NA cells in prediction region -----------------------
 idx <- which(!is.na(getValues(covariates_cropped[[1]])))
@@ -308,8 +323,8 @@ map_variable <- function (greta_array, draws) {
 
 # 5.5 Get values for mapping --------------------------------------------------
 lambda_map <- map_variable(lambdas_predict, draws)
-prob_presence_map <- map_variable(prob_presence_predict, draws) 
-# rate_map <- map_variable(rate_predict, draws)
+# prob_presence_map <- map_variable(prob_presence_predict, draws) 
+rate_map <- map_variable(rate_predict, draws)
 fec_map <- map_variable(fecundity_predict, draws)
 surv_map <- map_variable(survival_predict$adult, draws)
 
