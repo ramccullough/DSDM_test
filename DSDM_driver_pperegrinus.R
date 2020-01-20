@@ -244,6 +244,7 @@ abundance <- dat_clean[, 'Count']
 # distribution(abundance) <- poisson(rate)
 
 # set prior for dispersion parameter (move to prior section 3.7 when done)
+# inverse gamma (0.001, 0.001)
 size <- normal(0, 10, truncation = c(0, Inf))
 
 # define probability for negative binomial
