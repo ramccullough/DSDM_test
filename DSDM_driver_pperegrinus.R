@@ -49,8 +49,8 @@ prepare_coords_data <- function (coordinates_file) {
 }
 
 # 2.2 Function for cleaning survey data into required format ------------------
-clean_pp<-function(file, my_pts){
-  pp<-read.csv(file)
+clean_pp <- function(file, my_pts){
+  pp <- read.csv(file)
   pp_clean <- pp %>%
     mutate(RT = Species == "RT") %>%
     group_by(Site, Point) %>%
@@ -210,9 +210,9 @@ get_lambda <- function(survival, fecundity){
 }
 
 # 3.13 Function for calculating probability of presence ------------------------
-# get_prob <- function(lambda){
-#   icloglog(likelihood_intercept + log(lambda))
-# }
+get_prob <- function(lambda){
+  icloglog(likelihood_intercept + log(lambda))
+}
 
 # 3.14 Function for calculating count -----------------------------------------
 get_rate <- function(lambda){
@@ -226,26 +226,37 @@ get_rate <- function(lambda){
 survival <- get_survival(dat_clean)
 fecundity <- get_fecundity(dat_clean)
 lambdas <- get_lambda(survival, fecundity)
-# prob <- get_prob(lambdas)
+prob <- get_prob(lambdas)
 rate <- get_rate(lambdas)
 
 # 4.2 Define likelihood function for presence/absence data --------------------
-presence <- dat_clean %>%
-  mutate_at('Count', as.numeric) %>%
-  mutate(PA = ifelse(Count == 0, 0, 1))
-
-presence <- presence[, 'PA']
-
-distribution(presence) <- bernoulli(prob)
+# presence <- dat_clean %>%
+#   mutate_at('Count', as.numeric) %>%
+#   mutate(PA = ifelse(Count == 0, 0, 1))
+# 
+# presence <- presence[, 'PA']
+# 
+# distribution(presence) <- bernoulli(prob)
 
 # 4.3 Define likelihood function for count data  ------------------------------
 abundance <- dat_clean[, 'Count']
-distribution(abundance) <- poisson(rate)
+# poisson observation model
+# distribution(abundance) <- poisson(rate)
+
+# set prior for dispersion parameter (move to prior section 3.7 when done)
+size <- normal(0, 10, truncation = c(0, Inf))
+
+# define probability for negative binomial
+nb_prob  <- size / (size + rate)
+
+# negative binomial observation model
+distribution(abundance) <- negative_binomial(size, nb_prob)
 
 # 4.4 Fit model ---------------------------------------------------------------
 m <- model(beta_fecundity,
            beta_survival,
-           likelihood_intercept)
+           likelihood_intercept,
+           size)
 
 # 4.5 Run MCMC chain ----------------------------------------------------------
 draws <- mcmc(m, n_samples = 500, chains = 2)
@@ -257,15 +268,19 @@ draws <- mcmc(m, n_samples = 500, chains = 2)
 # mcmc_intervals(draws)
 
 # 4.7 Find model predictions at survey sites for model verification -----------
-rate_draws <- calculate(rate, draws)
-rate_matrix <- as.matrix(rate_draws)
-rate_matrix_means <- colMeans(rate_matrix)
-rate_matrix_ci <- apply(rate_matrix, 2, quantile, c(0.025, 0.975))
+# rate_draws <- calculate(lambdas, draws)
+# rate_matrix <- as.matrix(rate_draws)
+# rate_matrix_means <- colMeans(rate_matrix)
+# rate_matrix_ci <- apply(rate_matrix, 2, quantile, c(0.025, 0.975))
 
-# predicted_abundance <- rpois(length(rate_matrix_means), rate_matrix_means)
+nb_prob_draws <- calculate(nb_prob, draws)
+nb_prob_matrix <- as.matrix(nb_prob_draws)
 
-abundance_sim <- array(NA, dim = dim(rate_matrix))
-abundance_sim[] <- rpois(length(rate_matrix), rate_matrix[])
+size_draws <- calculate(size, draws)
+size_matrix <- as.matrix(size_draws)
+
+abundance_sim <- array(NA, dim = dim(nb_prob_matrix))
+abundance_sim[] <- rnbinom(length(nb_prob_matrix), size_matrix[], nb_prob_matrix[])
 
 # basic plot
 plot(abundance, colMeans(abundance_sim))
@@ -306,7 +321,7 @@ survival_predict <- get_survival(covariates_predict)
 fecundity_predict <- get_fecundity(covariates_predict)
 lambdas_predict <- get_lambda(survival_predict, fecundity_predict)
 prob_presence_predict <- get_prob(lambdas_predict)
- rate_predict <- get_rate(lambdas_predict)
+rate_predict <- get_rate(lambdas_predict)
 
 # 5.3 Get cell IDs of non-NA cells in prediction region -----------------------
 idx <- which(!is.na(getValues(covariates_cropped[[1]])))
