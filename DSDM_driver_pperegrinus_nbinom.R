@@ -238,9 +238,9 @@ logitnormal_prior <- function(mean, sd) {
 
 
 # 3.7c Set means and sds for priors -------------------------------------------
-# Assume 97.7% of data is <5
+# Assume mean + 2*sd = 5
 fecundity_prior <- lognormal_prior(1.23, 1.885)
-# Assume 97.7% of data is <0.9
+# Assume mean + 2*sd = 0.9
 survival_prior <- logitnormal_prior(0.64, 0.13)
 
 dat_survival <- as.matrix(dat_clean[, c(survival_covs, 'intercept')])
@@ -402,7 +402,6 @@ abundance_jitter <- jitter(abundance)
 p <- colMeans(sweep(abundance_sim_jitter, 2, STATS = abundance_jitter, FUN = `<`))
 hist(p, ylim = c(0, 100), xlab = "Randomised quantile residual", main = "Negative Binomial observation model")
 
-
 # abundance_sim_jitter <- abundance_sim
 # abundance_sim_jitter[] <- abundance_sim[] + runif(length(abundance_sim), -0.1, 0.1)
 # abundance_jitter <- abundance + runif(length(abundance), -0.1, 0.1)
@@ -478,36 +477,36 @@ surv_cols <- colorRampPalette(YlGn)(1000)
 fec_cols <- colorRampPalette(RdPu)(1000)
 
 # 6.2 Plot survival -----------------------------------------------------------
-png(paste("survival", date, sep = "_"))
+#png(paste("survival", date, sep = "_"))
 plot(surv_map, 
      zlim = c(0, 1), 
      main = "Adult survival rate", 
      col = surv_cols,
      axes = FALSE,
      box = FALSE)
-dev.off()
+#dev.off()
 
 # 6.3 Plot fecundity ----------------------------------------------------------
-png(paste("fecundity", date, sep = "_"))
+#png(paste("fecundity", date, sep = "_"))
 plot(fec_map, 
      #zlim = c(0, maxValue(fec_map)), 
      main = "Fecundity", 
      col = fec_cols,
      axes = FALSE,
      box = FALSE)
-dev.off()
+#dev.off()
 
 # 6.4 Plot rate ---------------------------------------------------------------
-png(paste("rate", date, sep = "_"))
+#png(paste("rate", date, sep = "_"))
 plot(rate_map, 
      col = rate_cols,
      main = "Abundance",
      axes = FALSE,
      box = FALSE)
-dev.off()
+#dev.off()
 
 # 6.5 Plot range --------------------------------------------------------------
-png(paste("range", date, sep = "_"))
+#png(paste("range", date, sep = "_"))
 range <- lambda_map > 1
 plot(range,
      col = c(grey(0.9), 'lightblue'),
@@ -515,5 +514,5 @@ plot(range,
      main = "Range",
      axes = FALSE,
      box = FALSE)
-dev.off()
+#dev.off()
 
