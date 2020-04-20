@@ -9,8 +9,8 @@ library(greta)
 library(bayesplot)
 library(dplyr)
 
+set.seed(20200420)
 #set working directory for data
-setwd("C:/Users/racha/Google Drive (rmccullough@student.unimelb.edu.au)/MSc/Research/Computational")
 
 #Define functions
 #scale covariates
@@ -67,10 +67,10 @@ dat_sds <- apply(dat, 2, sd)
 
 dat <- scale_covs(dat, dat_means, dat_sds)
 
-#survival and fecundity data for ringtail possums from McCarthy, Lindenmayer and Possingham
-#adults survival =0.64
-#juvenile survival =0.33
-#newborn females/breeder =1.23
+# Survival and fecundity data for ringtail possums from McCarthy, Lindenmayer and Possingham
+# adults survival =0.64
+# juvenile survival = 0.33
+# newborn females/breeder = 1.23
 default_logit_survival_adult <- qlogis(0.64)
 default_logit_survival_juvenile <- qlogis(0.33)
 default_log_fecundity <- log(1.23)
@@ -80,11 +80,11 @@ default_log_fecundity <- log(1.23)
 # b_survival<-as.matrix(rnorm(ncov_survival, mean=0, sd=0.1))
 b_fecundity <- matrix(c(0.018, -0.095), 2, 1)
 b_survival <- matrix(c(-0.183, -0.010, 0.036), 3, 1)
-l_intercept < -0.1
+l_intercept <- 0.1
 
 ##Using greta arrays
-beta_fecundity <- normal(0, 1/ncov_fecundity, dim = ncov_fecundity)
-beta_survival <- normal(0, 1/ncov_survival, dim = ncov_survival)
+beta_fecundity <- normal(0, 0.1, dim = ncov_fecundity)
+beta_survival <- normal(0, 0.1, dim = ncov_survival)
 likelihood_intercept <- variable()
 
 #survival
@@ -119,28 +119,17 @@ survival <- get_survival(survival_covs)
 fecundity <- get_fecundity(fecundity_covs)
 lambda <- get_lambda(survival, fecundity)
 
-#poisson rate for abundance
-# pi<-exp(likelihood_intercept)*lambda
-# pi_true<-calculate(pi, values=list(likelihood_intercept=l_intercept, beta_fecundity=b_fecundity, beta_survival=b_survival))
+# poisson rate for abundance
+pi <- exp(likelihood_intercept)*lambda
+pi_true <- calculate(pi, values=list(likelihood_intercept=l_intercept, beta_fecundity=b_fecundity, beta_survival=b_survival))
 
-#probability of presence
-p <- icloglog(likelihood_intercept + log(lambda))
-p_true <- calculate(p, values = list(likelihood_intercept = l_intercept, beta_fecundity = b_fecundity, beta_survival = b_survival))
+# simulated abundance data
+y <- rpois(n, pi_true)
 
-#simulated PA data
-y <- rbinom(n, 1, p_true)
-
-#simulated abundance data
-# y<-rpois(n, pi_true)
-
-#PA distribution
-distribution(y) <- bernoulli(p)
-
-#abundance distribution
-# distribution(y)<-poisson(pi)
+# abundance distribution
+distribution(y) <- poisson(pi)
 
 m <- model(beta_fecundity, beta_survival, likelihood_intercept)
-#plot(m)
 
 chains = 4
 nsamples = 1000
@@ -149,28 +138,6 @@ draws <- mcmc(m, n_samples = nsamples, chains = chains)
 summary(draws)
 mcmc_hist(draws)
 mcmc_recover_hist(draws, true = c(b_fecundity, b_survival, l_intercept))
-
-
-# o<-opt(m, hessian=TRUE)
-#  
-# fec_draws <- calculate(beta_fecundity, draws)
-# fec_matrix <- as.matrix(draws)
-# cor(fec_matrix)
-# 
-# surv_draws <- calculate(beta_survival, draws)
-# surv_matrix <- as.matrix(draws)
-# cor(surv_matrix)
-#  
-# sqrt(solve(h$hessian$beta_fecundity))
-
-#get mle and covariances matrices
-summary(glm(y~lambda, family=stats::binomial()))
-
-#find negative log likelihood
-nll<-function(){
-  p<-icloglog(likelihood_intercept+log(lambda))
-  -sum(y*log(p)+(1-y)*log(1-p))
-}
 
 
 
