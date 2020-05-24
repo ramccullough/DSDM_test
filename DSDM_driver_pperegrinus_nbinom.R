@@ -33,7 +33,6 @@ set.seed(20200420)
 
 # 1.2 Set working directory for downloading data  -----------------------------
 setwd("~/")
-# setwd("C:/Users/racha/Google Drive (rmccullough@student.unimelb.edu.au)/MSc/Research/Computational/")
 rel_path_input <- 'pp_grids/pp_grids/'
 
 # =============================================================================
